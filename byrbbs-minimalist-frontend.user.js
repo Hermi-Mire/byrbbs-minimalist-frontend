@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         北邮人论坛 · 简约版
 // @namespace    https://bbs.byr.cn/
-// @version      0.5.1
+// @version      0.5.2
 // @description  将北邮人论坛帖子详情页重构为响应式简约布局（卡片式楼层、浮动标题/路径栏、底部快捷回复、舒适排版），支持跟随系统的黑夜模式。
 // @author       Hermi2024
 // @match        https://bbs.byr.cn/*
 // @match        http://bbs.byr.cn/*
+// @updateURL    https://raw.githubusercontent.com/Hermi-Mire/byrbbs-minimalist-frontend/main/byrbbs-minimalist-frontend.user.js
+// @downloadURL  https://raw.githubusercontent.com/Hermi-Mire/byrbbs-minimalist-frontend/main/byrbbs-minimalist-frontend.user.js
 // @run-at       document-start
 // @grant        none
 // @noframes

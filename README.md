@@ -1,6 +1,6 @@
 # 北邮人论坛 · 简约版
 
-Tampermonkey 用户脚本，重做北邮人论坛网页**帖子详情页**。当前版本 **0.5.1**，只作用于 `#!article/...` 帖子页。默认开启，左下角「简约版」或 `Alt+M` 可切回原版。
+Tampermonkey 用户脚本，重做北邮人论坛网页**帖子详情页**。当前版本 **0.5.2**，只作用于 `#!article/...` 帖子页。默认开启，左下角「简约版」或 `Alt+M` 可切回原版。
 
 ## 特色功能
 
@@ -19,6 +19,8 @@ Tampermonkey 用户脚本，重做北邮人论坛网页**帖子详情页**。当
 - 保留原版全部功能：搜索、关注、分页、分享、回复、收藏、精彩回复、只看此 ID、返回顶部等。
 
 ## 安装
+
+**一键安装**：[点此安装](https://raw.githubusercontent.com/Hermi-Mire/byrbbs-minimalist-frontend/main/byrbbs-minimalist-frontend.user.js)（Tampermonkey 会弹出安装页）
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展
 2. 点击 [`byrbbs-minimalist-frontend.user.js`](byrbbs-minimalist-frontend.user.js) 文件，选择 “Raw” 查看原始内容
