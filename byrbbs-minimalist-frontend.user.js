@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         北邮人论坛 · 简约版
 // @namespace    https://bbs.byr.cn/
-// @version      0.5.2
-// @description  将北邮人论坛帖子详情页重构为响应式简约布局（卡片式楼层、浮动标题/路径栏、底部快捷回复、舒适排版），支持跟随系统的黑夜模式。
+// @version      0.6.1
+// @description  美化论坛首页（圆角卡片、响应式布局、深色模式），并将帖子详情页重构为响应式简约布局（卡片式楼层、浮动标题/路径栏、底部快捷回复、舒适排版），支持跟随系统的黑夜模式。
 // @author       Hermi2024
 // @match        https://bbs.byr.cn/*
 // @match        http://bbs.byr.cn/*
@@ -70,9 +70,15 @@
   }
 
   /* ------------------------------------------------------------------ *
-   * 1. 路由判断：只在帖子详情页启用
+   * 1. 路由判断：首页和帖子详情页启用
    *    BYR 是 hash 路由：#!article/版面/文章ID
    * ------------------------------------------------------------------ */
+  function isHomePage() {
+    const route = location.hash.replace(/^#!/, '').replace(/\/$/, '');
+    return /^(default|index)$/.test(route) ||
+      (!location.hash && /^\/(default|index)?\/?$/.test(location.pathname));
+  }
+
   function isArticlePage() {
     return (
       /^#!article\//.test(location.hash) ||
@@ -111,12 +117,15 @@
   function applyRoute() {
     const body = document.body;
     if (!body) return;
+    body.classList.toggle('bym-home-route', isHomePage());
+    const home = isHomePage() && !!body.querySelector('#body .widget');
+    body.classList.toggle('bym-home', home && state.enabled);
     const article = isArticlePage();
     const ready = article && hasArticleContent();
     body.classList.toggle('bym-is-article', article);
     body.classList.toggle('bym-ready', ready);
     body.classList.toggle('bym-on', ready && state.enabled);
-    if (!(ready && state.enabled)) {
+    if (!((ready || home) && state.enabled)) {
       body.classList.remove('bym-menu-open');
       syncMenu();
       if (floatbar) floatbar.classList.remove('bym-visible');
@@ -130,7 +139,7 @@
   const CSS = String.raw`
 /* ==================================================================
    北邮人论坛 · 简约版
-   仅作用于 body.bym-on（帖子详情页且用户开启）
+   帖子详情页作用于 body.bym-on，首页样式单独作用于 body.bym-home
    ================================================================== */
 
 /* ---------- 页面底色与基础 ---------- */
@@ -1432,6 +1441,7 @@ body.bym-on #bot_info {
   gap: 6px;
 }
 body.bym-is-article.bym-ready #bym-dock { display: flex; }
+body.bym-home-route #bym-dock { display: flex; }
 #bym-dock button {
   display: inline-flex;
   align-items: center;
@@ -1595,7 +1605,7 @@ body.bym-on #bot_foot { margin-bottom: calc(var(--bym-composer-h, 54px) + 42px) 
 
 /* ==================================================================
    黑夜模式：跟随系统，或由左下角太阳/月亮按钮手动覆盖
-   （只在帖子页且简约版开启时给 html 加 .bym-dark）
+   （首页或帖子页简约版开启时给 html 加 .bym-dark）
    ================================================================== */
 html.bym-dark { background: #0d1117; color-scheme: dark; }
 
@@ -1818,11 +1828,80 @@ html.bym-dark body.bym-on .a-comment.bym-emoji-open #em_img {
 }
 `;
 
+  const HOME_CSS = String.raw`
+/* 首页：保留原始组件及站点事件，只调整展示。 */
+body.bym-home { --home-bg:#f4f6fa; --home-card:#fff; --home-text:#243247; --home-muted:#718096; --home-line:#e4e9f2; --home-accent:#2f6fd0; background:var(--home-bg)!important; color:var(--home-text); min-width:0!important; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; -webkit-font-smoothing:antialiased; }
+html.bym-dark body.bym-home { --home-bg:#101722; --home-card:#192230; --home-text:#dbe5f1; --home-muted:#94a3b8; --home-line:#2b384b; --home-accent:#8bb7ff; color-scheme:dark; }
+body.bym-home #top_head { display:flex!important; align-items:center; gap:24px; max-width:1240px; height:auto!important; min-height:80px; margin:auto!important; padding:12px 24px!important; box-sizing:border-box; background:transparent!important; }
+body.bym-home #top_logo { margin:0!important; float:none!important; }
+body.bym-home #top_logo img { height:38px!important; width:auto!important; }
+body.bym-home #top_menu { margin-left:auto!important; float:none!important; }
+body.bym-home #top_menu ul { display:flex; flex-wrap:wrap; gap:16px; }
+body.bym-home #top_menu a { color:var(--home-muted)!important; text-decoration:none; }
+body.bym-home #ban_ner, body.bym-home #left_adv, body.bym-home #left_line { display:none!important; }
+body.bym-home #menu { position:absolute!important; top:96px!important; left:max(24px,calc((100vw - 1192px)/2))!important; width:208px!important; margin:0!important; background:transparent!important; }
+body.bym-home #u_login, body.bym-home #xlist { width:auto!important; margin:0 0 16px!important; padding:16px!important; border:1px solid var(--home-line)!important; border-radius:16px!important; background:var(--home-card)!important; box-sizing:border-box; }
+body.bym-home #menu a { color:var(--home-text)!important; line-height:1.9; }
+body.bym-home #menu input { max-width:100%; box-sizing:border-box; }
+body.bym-home #main { width:auto!important; max-width:960px; margin:12px max(24px,calc((100vw - 1192px)/2)) 64px max(256px,calc((100vw - 728px)/2))!important; padding:0!important; border:0!important; background:transparent!important; }
+body.bym-home #notice { background:transparent!important; border:0!important; padding:0 4px 18px!important; color:var(--home-muted)!important; }
+body.bym-home #notice a { color:var(--home-muted)!important; }
+body.bym-home #body { width:100%!important; background:transparent!important; overflow:visible!important; }
+body.bym-home #body .column { box-sizing:border-box; padding:0 8px!important; }
+body.bym-home #body .widget { margin:0 0 20px!important; border:1px solid var(--home-line)!important; border-radius:16px!important; background:var(--home-card)!important; box-shadow:0 8px 24px -18px #273d6240; overflow:hidden; color:var(--home-text)!important; }
+body.bym-home #body .widget-head { height:auto!important; min-height:28px; padding:16px 18px!important; background:transparent!important; border:0!important; border-bottom:1px solid var(--home-line)!important; color:var(--home-text)!important; }
+body.bym-home #body .widget-title { font-size:16px!important; font-weight:650; letter-spacing:.02em; color:var(--home-text)!important; }
+body.bym-home #body .widget-content { height:auto; padding:10px 18px 16px!important; border:0!important; background:transparent!important; color:var(--home-text)!important; }
+body.bym-home #body .widget-content li { padding:8px 0!important; line-height:1.7!important; border-bottom:1px solid var(--home-line); }
+body.bym-home #body .widget-content li:last-child { border-bottom:0; }
+body.bym-home #body .widget-content a { color:var(--home-text)!important; font-size:14px; text-decoration:none!important; overflow-wrap:anywhere; }
+body.bym-home #body a:hover,body.bym-home #menu a:hover { color:var(--home-accent)!important; }
+body.bym-home a:focus-visible,body.bym-home button:focus-visible { outline:2px solid var(--home-accent); outline-offset:3px; }
+body.bym-home #bot_foot { background:transparent!important; border:0!important; color:var(--home-muted)!important; }
+body.bym-home #bot_info { color:var(--home-muted)!important; }
+@media(max-width:1000px) { body.bym-home #body .column { width:100%!important; float:none!important; } }
+@media(max-width:760px) {
+ body.bym-home #top_head { padding:12px 16px!important; flex-wrap:wrap; gap:12px; }
+ body.bym-home #top_menu ul { gap:10px; padding:0; }
+ body.bym-home #menu { display:none!important; }
+ body.bym-home #main { margin:12px 12px 80px!important; max-width:none; }
+ body.bym-home.bym-menu-open #menu { display:block!important; position:fixed!important; top:80px!important; left:12px!important; bottom:64px; width:240px!important; overflow:auto; z-index:2147482998; }
+ body.bym-home #body .column { padding:0!important; }
+}
+`;
+
+  // 原导航的固定高度及浮动链接与新行高冲突，逐行排版并保留树的显隐逻辑。
+  const NAV_CSS = String.raw`
+body.bym-home #xlist li { float:none!important; clear:both; width:auto!important; box-sizing:border-box; }
+body.bym-home #xlist .x-folder,
+body.bym-home #xlist .x-leaf,
+body.bym-home #xlist .x-child li > span {
+  display:flex!important; align-items:center; gap:7px;
+  height:auto!important; min-height:30px; width:100%!important;
+  padding:4px 3px!important; box-sizing:border-box;
+  overflow:visible!important; line-height:1.5!important;
+}
+body.bym-home #xlist a {
+  float:none!important; display:block; flex:1 1 auto; min-width:0;
+  padding:0!important; line-height:1.5!important;
+  white-space:normal!important; overflow-wrap:anywhere;
+}
+body.bym-home #xlist .toggler,
+body.bym-home #xlist .leaf samp,
+body.bym-home #xlist .leaf-last samp {
+  float:none!important; flex-shrink:0; margin:0!important;
+}
+body.bym-home #xlist .x-child li { padding:0 0 0 10px!important; }
+body.bym-home #xlist .x-folder:hover,
+body.bym-home #xlist .x-leaf:hover { background:var(--home-bg)!important; border-radius:6px; }
+body.bym-home #xlist .x-search input { width:100%!important; min-width:0; }
+`;
+
   function injectStyle() {
     if (document.getElementById('bym-style')) return;
     const el = document.createElement('style');
     el.id = 'bym-style';
-    el.textContent = CSS;
+    el.textContent = CSS + HOME_CSS + NAV_CSS;
     (document.head || document.documentElement).appendChild(el);
   }
 
@@ -1858,7 +1937,7 @@ html.bym-dark body.bym-on .a-comment.bym-emoji-open #em_img {
 
   function applyTheme() {
     // 跟随 body.bym-on：内容还没换过来时不要给旧页面套深色
-    const modern = !!(document.body && document.body.classList.contains('bym-on'));
+    const modern = !!(document.body && (document.body.classList.contains('bym-on') || document.body.classList.contains('bym-home')));
     const dark = !!(modern && state.enabled && effectiveDark());
     document.documentElement.classList.toggle('bym-dark', dark);
     syncTheme();
@@ -1949,7 +2028,7 @@ html.bym-dark body.bym-on .a-comment.bym-emoji-open #em_img {
 
   function onKeydown(e) {
     if (e.altKey && !e.ctrlKey && !e.metaKey && String(e.key).toLowerCase() === TOGGLE_KEY) {
-      if (isArticlePage()) {
+      if (isArticlePage() || isHomePage()) {
         e.preventDefault();
         toggle();
       }
