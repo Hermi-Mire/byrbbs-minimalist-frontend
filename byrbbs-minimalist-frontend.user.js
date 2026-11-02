@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         北邮人论坛 · 简约版
 // @namespace    https://bbs.byr.cn/
-// @version      0.6.2
+// @version      0.6.3
 // @description  美化论坛首页（圆角卡片、响应式布局、深色模式），并将帖子详情页重构为响应式简约布局（卡片式楼层、浮动标题/路径栏、底部快捷回复、舒适排版），支持跟随系统的黑夜模式。
 // @author       Hermi2024
 // @match        https://bbs.byr.cn/*
@@ -84,6 +84,11 @@
       (!location.hash && /^\/section\/\d+(?:\/|$)/.test(location.pathname));
   }
 
+  function isBoardPage() {
+    return /^#!board\/[^/?#]+(?:\/|\?|$)/.test(location.hash) ||
+      (!location.hash && /^\/board\/[^/?#]+(?:\/|$)/.test(location.pathname));
+  }
+
   function isArticlePage() {
     return (
       /^#!article\//.test(location.hash) ||
@@ -123,9 +128,11 @@
     const body = document.body;
     if (!body) return;
     const section = isSectionPage() && !!body.querySelector('#body .board-list');
+    const board = isBoardPage() && !!body.querySelector('#body .board-list .title_9');
     body.classList.toggle('bym-section', section && state.enabled);
-    body.classList.toggle('bym-home-route', isHomePage() || isSectionPage());
-    const home = (isHomePage() && !!body.querySelector('#body .widget')) || section;
+    body.classList.toggle('bym-board', board && state.enabled);
+    body.classList.toggle('bym-home-route', isHomePage() || isSectionPage() || isBoardPage());
+    const home = (isHomePage() && !!body.querySelector('#body .widget')) || section || board;
     body.classList.toggle('bym-home', home && state.enabled);
     const article = isArticlePage();
     const ready = article && hasArticleContent();
@@ -1947,11 +1954,53 @@ body.bym-section .board-list td p { color:var(--home-muted)!important; line-heig
 }
 `;
 
+  const BOARD_CSS = SECTION_CSS.replaceAll('body.bym-section', 'body.bym-board') + String.raw`
+/* 版面主题列表：保留状态、作者、回复、模式和分页，不套用帖子详情页的固定回复栏。 */
+body.bym-board #body > .b-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px 24px; justify-content:space-between; font-size:13px!important; font-weight:400; }
+body.bym-board #body > .b-head .n-right { float:none!important; margin:0!important; }
+body.bym-board .board-list { min-width:900px; table-layout:auto!important; }
+body.bym-board .board-list td:first-child { min-width:24px; width:24px; }
+body.bym-board .board-list .title_9 { min-width:280px; width:auto!important; }
+body.bym-board .board-list .title_9 a { white-space:normal!important; overflow-wrap:anywhere; }
+body.bym-board .board-list .title_10 { white-space:nowrap!important; font-size:12px; color:var(--home-muted)!important; }
+body.bym-board .board-list td { font-size:13px; }
+body.bym-board .board-list .title_9 { font-size:14px; }
+body.bym-board .board-list .title_9 a:visited { color:var(--home-muted)!important; }
+body.bym-board .board-list .bg-odd,
+body.bym-board .board-list .bg-even { background:transparent!important; }
+body.bym-board #body > .t-pre,
+body.bym-board #body > .t-pre-bottom {
+  display:flex!important; flex-wrap:wrap; align-items:center; gap:10px;
+  box-sizing:border-box; width:100%!important;
+  height:auto!important; padding:12px 16px!important; margin:0 0 16px!important;
+  border:1px solid var(--home-line)!important; border-radius:12px!important;
+  background:var(--home-card)!important; color:var(--home-muted)!important;
+}
+body.bym-board #body > .t-pre-bottom { margin-top:16px!important; }
+body.bym-board .t-btn { display:flex; flex-wrap:wrap; gap:6px; }
+body.bym-board .t-btn a,body.bym-board .page-main a {
+  display:inline-block; padding:5px 10px!important; margin:0!important;
+  border:1px solid var(--home-line)!important; border-radius:7px!important;
+  background:var(--home-bg)!important; color:var(--home-text)!important;
+}
+body.bym-board .page-select a { background:var(--home-accent)!important; color:var(--home-card)!important; }
+body.bym-board .page,body.bym-board .pagination,body.bym-board .page-main {
+  display:flex; align-items:center; flex-wrap:wrap; gap:5px; float:none!important;
+}
+body.bym-board #f_search { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+body.bym-board input,body.bym-board select {
+  box-sizing:border-box; max-width:100%; color:var(--home-text)!important;
+  background:var(--home-card)!important; border:1px solid var(--home-line)!important; border-radius:6px;
+}
+body.bym-board input[type=text] { padding:6px 8px; }
+body.bym-board input[type=submit],body.bym-board .button { padding:6px 12px!important; cursor:pointer; }
+`;
+
   function injectStyle() {
     if (document.getElementById('bym-style')) return;
     const el = document.createElement('style');
     el.id = 'bym-style';
-    el.textContent = CSS + HOME_CSS + NAV_CSS + SECTION_CSS;
+    el.textContent = CSS + HOME_CSS + NAV_CSS + SECTION_CSS + BOARD_CSS;
     (document.head || document.documentElement).appendChild(el);
   }
 
@@ -2078,7 +2127,7 @@ body.bym-section .board-list td p { color:var(--home-muted)!important; line-heig
 
   function onKeydown(e) {
     if (e.altKey && !e.ctrlKey && !e.metaKey && String(e.key).toLowerCase() === TOGGLE_KEY) {
-      if (isArticlePage() || isHomePage() || isSectionPage()) {
+      if (isArticlePage() || isHomePage() || isSectionPage() || isBoardPage()) {
         e.preventDefault();
         toggle();
       }
