@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         北邮人论坛 · 简约版
 // @namespace    https://bbs.byr.cn/
-// @version      0.6.1
+// @version      0.6.2
 // @description  美化论坛首页（圆角卡片、响应式布局、深色模式），并将帖子详情页重构为响应式简约布局（卡片式楼层、浮动标题/路径栏、底部快捷回复、舒适排版），支持跟随系统的黑夜模式。
 // @author       Hermi2024
 // @match        https://bbs.byr.cn/*
@@ -79,6 +79,11 @@
       (!location.hash && /^\/(default|index)?\/?$/.test(location.pathname));
   }
 
+  function isSectionPage() {
+    return /^#!section\/\d+(?:\/|\?|$)/.test(location.hash) ||
+      (!location.hash && /^\/section\/\d+(?:\/|$)/.test(location.pathname));
+  }
+
   function isArticlePage() {
     return (
       /^#!article\//.test(location.hash) ||
@@ -117,8 +122,10 @@
   function applyRoute() {
     const body = document.body;
     if (!body) return;
-    body.classList.toggle('bym-home-route', isHomePage());
-    const home = isHomePage() && !!body.querySelector('#body .widget');
+    const section = isSectionPage() && !!body.querySelector('#body .board-list');
+    body.classList.toggle('bym-section', section && state.enabled);
+    body.classList.toggle('bym-home-route', isHomePage() || isSectionPage());
+    const home = (isHomePage() && !!body.querySelector('#body .widget')) || section;
     body.classList.toggle('bym-home', home && state.enabled);
     const article = isArticlePage();
     const ready = article && hasArticleContent();
@@ -1897,11 +1904,54 @@ body.bym-home #xlist .x-leaf:hover { background:var(--home-bg)!important; border
 body.bym-home #xlist .x-search input { width:100%!important; min-width:0; }
 `;
 
+  const SECTION_CSS = String.raw`
+/* 分区页沿用首页的外框、侧栏和主题，保留原版面表格及交互。 */
+body.bym-section #body > .b-head {
+  height:auto!important; padding:20px 24px!important; margin:0 0 16px!important;
+  border:1px solid var(--home-line)!important; border-radius:16px!important;
+  background:var(--home-card)!important; color:var(--home-text)!important;
+  font-size:20px!important; line-height:1.5!important; overflow:auto;
+}
+body.bym-section #body > .b-content {
+  padding:8px 20px 20px!important; border:1px solid var(--home-line)!important;
+  border-radius:16px!important; background:var(--home-card)!important;
+  overflow-x:auto!important; box-sizing:border-box;
+}
+body.bym-section .board-list {
+  width:100%!important; border-collapse:collapse; color:var(--home-text)!important;
+  font-size:14px; line-height:1.65;
+}
+body.bym-section .board-list thead tr { border:0!important; }
+body.bym-section .board-list th {
+  background:var(--home-card)!important; color:var(--home-muted)!important;
+  padding:14px 8px!important; border-bottom:1px solid var(--home-line)!important;
+  font-size:12px; white-space:nowrap;
+}
+body.bym-section .board-list td {
+  height:auto!important; padding:16px 8px!important;
+  border-bottom:1px solid var(--home-line)!important;
+  background:transparent!important; vertical-align:middle!important;
+}
+body.bym-section .board-list tr:last-child td { border-bottom:0!important; }
+body.bym-section .board-list tr:hover td,
+body.bym-section .board-list tr.kb td { background:var(--home-bg)!important; }
+body.bym-section #body a { color:var(--home-text)!important; text-decoration:none!important; }
+body.bym-section #body a:hover { color:var(--home-accent)!important; }
+body.bym-section .board-list td a { line-height:1.6!important; }
+body.bym-section .board-list td:first-child { min-width:130px; }
+body.bym-section .board-list td p { color:var(--home-muted)!important; line-height:1.6!important; }
+@media(max-width:760px) {
+  body.bym-section #body > .b-head { padding:16px!important; font-size:18px!important; }
+  body.bym-section #body > .b-content { padding:6px 10px 14px!important; }
+  body.bym-section .board-list { min-width:680px; }
+}
+`;
+
   function injectStyle() {
     if (document.getElementById('bym-style')) return;
     const el = document.createElement('style');
     el.id = 'bym-style';
-    el.textContent = CSS + HOME_CSS + NAV_CSS;
+    el.textContent = CSS + HOME_CSS + NAV_CSS + SECTION_CSS;
     (document.head || document.documentElement).appendChild(el);
   }
 
@@ -2028,7 +2078,7 @@ body.bym-home #xlist .x-search input { width:100%!important; min-width:0; }
 
   function onKeydown(e) {
     if (e.altKey && !e.ctrlKey && !e.metaKey && String(e.key).toLowerCase() === TOGGLE_KEY) {
-      if (isArticlePage() || isHomePage()) {
+      if (isArticlePage() || isHomePage() || isSectionPage()) {
         e.preventDefault();
         toggle();
       }
