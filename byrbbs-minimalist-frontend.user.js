@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         北邮人论坛 · 简约版
 // @namespace    https://bbs.byr.cn/
-// @version      0.7.0
+// @version      0.8.0
 // @description  将北邮人论坛帖子详情页重构为响应式简约布局（卡片式楼层、浮动标题/路径栏、底部快捷回复、舒适排版），支持跟随系统的黑夜模式。
 // @author       Hermi2024
 // @match        https://bbs.byr.cn/*
@@ -160,6 +160,8 @@
       body.classList.remove('bym-menu-open');
       syncMenu();
       if (floatbar) floatbar.classList.remove('bym-visible');
+      if (floorTopBtn) floorTopBtn.classList.remove('bym-visible');
+      floorTopTarget = null;
     }
     applyTheme();
   }
@@ -534,7 +536,7 @@ body.bym-on #body > .b-head {
   border-radius: 14px !important;
   background: #fff !important;
   color: #0f172a !important;
-  font-size: 19px !important;
+  font-size: 16px !important;
   font-weight: 650 !important;
   line-height: 1.45;
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 16px 40px -34px rgba(15, 23, 42, .5);
@@ -579,7 +581,7 @@ body.bym-on .b-content {
 }
 
 body.bym-on .a-wrap {
-  margin: 0 0 14px !important;
+  margin: 0 0 7px !important;
   border: 1px solid var(--bym-border) !important;
   border-radius: 14px !important;
   background: #fff !important;
@@ -599,12 +601,30 @@ body.bym-on table.article > tbody {
   border-collapse: collapse !important;
   background: transparent !important;
 }
-body.bym-on table.article td {
+body.bym-on table.article td:not(:where(.markdown td)) {
   background: transparent !important;
   vertical-align: top !important;
 }
 /* 注意：被折叠楼层的占位单元格由站点 JS 控制 display，
    这里不要强制 display，否则「手贱想看」按钮永远不出现 */
+
+/* 正文里的 markdown 表格：站点 gfm 样式写死了白底和 #ccc 边框，
+   这里换成主题色。不加 !important，帖子里自带的单元格底色仍然优先 */
+body.bym-on .a-content-wrap .markdown table tr,
+body.bym-on .a-content-wrap .markdown table tr td {
+  background: #fff;
+}
+body.bym-on .a-content-wrap .markdown table thead tr,
+body.bym-on .a-content-wrap .markdown table thead tr td {
+  background: var(--bym-surface-muted);
+}
+body.bym-on .a-content-wrap .markdown table tbody tr:nth-child(2n) td {
+  background: var(--bym-surface-tint);
+}
+body.bym-on .a-content-wrap .markdown table td,
+body.bym-on .a-content-wrap .markdown table th {
+  border-color: var(--bym-border);
+}
 
 /* 楼层头：作者 + 操作 */
 body.bym-on .a-head {
@@ -700,12 +720,16 @@ body.bym-on .a-body > .a-content {
 body.bym-on .a-body .a-left {
   flex: 0 0 184px;
   width: 184px !important;
-  padding: 16px 10px !important;
+  padding: 10px !important;
   border-right: 1px solid #f1f5f9 !important;
   background: var(--bym-surface-soft) !important;
   text-align: center;
   box-sizing: border-box;
   overflow: visible !important;
+}
+/* 普通楼层不再画右侧分隔线：用户资料点开头像即可查看，左栏尽量干净 */
+body.bym-on .a-wrap:not(.bym-anon) .a-body .a-left {
+  border-right: 0 !important;
 }
 body.bym-on .a-body .a-left > div {
   width: auto !important;
@@ -739,11 +763,8 @@ body.bym-on .a-body .a-left iframe {
   border: 0 !important;
 }
 
-/* 匿名帖（IWhisper 等）左栏没有用户信息，收窄头像列 */
-body.bym-on .a-wrap.bym-anon .a-body .a-left {
-  flex: 0 0 104px;
-  width: 104px !important;
-}
+/* 匿名帖（IWhisper 等）和普通帖保持同样的用户栏宽度，
+   正文与底部赞踩才能从同一位置开始 */
 body.bym-on .a-wrap.bym-anon .a-body .a-left img {
   width: 64px !important;
   height: 64px !important;
@@ -792,6 +813,8 @@ body.bym-on .a-body .a-left .a-u-info dd {
 }
 body.bym-on .a-body .a-left .a-u-info dt { color: var(--bym-text-faint) !important; white-space: nowrap; }
 body.bym-on .a-body .a-left .a-u-info dd { color: var(--bym-text-mid) !important; overflow-wrap: anywhere; }
+/* 等级 / 文章数 / 积分等信息点开头像就能看到，楼层里不再重复占位 */
+body.bym-on .a-body .a-left .a-u-info { display: none !important; }
 
 /* 查看 / 发信 / 加好友：由脚本移入左栏，横向排在用户信息下方
    图标是 <a> 的兄弟节点，背景放在 <li> 上，避免图标被按钮底色盖住 */
@@ -860,7 +883,7 @@ body.bym-on .a-body .a-left .a-func-info samp {
   pointer-events: none;
 }
 /* 查看功能移到头像点击；加好友稍微加宽 */
-body.bym-on .a-body .a-left .a-func-info li.bym-action-view { display: none !important; }
+body.bym-on .a-func-info li.bym-action-view { display: none !important; }
 body.bym-on .a-body .a-left .a-func-info li.bym-action-friend { flex-grow: 1.35; }
 /* 头像本身包一层真实链接，点击时由站点自己的 /user/query/ 处理器打开资料对话框 */
 body.bym-on .a-body .a-left .a-u-img > .bym-avatar-link {
@@ -876,8 +899,9 @@ body.bym-on .a-body .a-left .a-u-img > .bym-avatar-link {
 body.bym-on .a-content {
   padding: 16px 20px 18px !important;
   color: var(--bym-text) !important;
-  font-size: 15px !important;
-  line-height: 1.85 !important;
+  /* 正文字号 14px；行距比旧版紧凑一些 */
+  font-size: 14px !important;
+  line-height: 1.6 !important;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -886,6 +910,8 @@ body.bym-on .a-content-wrap {
   font-size: inherit !important;
   overflow: visible !important;
 }
+/* 落款移走后遗留的空行 */
+body.bym-on .bym-tail-blank { display: none !important; }
 /* 发信人 / 标题 / 发信站：弱化为辅助信息 */
 body.bym-on .bym-meta {
   margin: 0 0 8px;
@@ -893,12 +919,15 @@ body.bym-on .bym-meta {
   border-bottom: 1px dashed var(--bym-surface-muted);
   color: var(--bym-text-faint);
   font-size: 12px;
-  line-height: 1.75;
+  line-height: 1.5;
 }
 body.bym-on .bym-meta font { color: inherit !important; }
 /* 默认只显示「发信站」一行，点右侧小箭头展开发信人 / 标题 */
 body.bym-on .bym-meta-extra { display: none; }
 body.bym-on .bym-meta.bym-meta-open .bym-meta-extra { display: inline; }
+/* 「※ 来源 / 修改」也并入发信信息：放在发信站下面，折叠时同样隐藏 */
+body.bym-on .bym-meta-source { display: none; }
+body.bym-on .bym-meta.bym-meta-open .bym-meta-source { display: inline; }
 body.bym-on .bym-meta-toggle {
   display: inline-flex;
   align-items: center;
@@ -937,7 +966,7 @@ body.bym-on .a-content-wrap a:hover { text-decoration: underline !important; }
 body.bym-on .a-content-wrap .bym-source {
   color: #a8b3c2 !important;
   font-size: 11.5px !important;
-  line-height: 1.7;
+  line-height: 1.5;
 }
 body.bym-on .a-content-wrap .bym-source a {
   color: #a8b3c2 !important;
@@ -949,8 +978,10 @@ body.bym-on .a-content-wrap img {
   height: auto !important;
   border-radius: 8px;
 }
-/* 站内小表情不要被放大成正文那么大 */
-body.bym-on .a-content-wrap img[alt^="ema"] {
+/* 站内小表情不要被放大成正文那么大。
+   表情的 alt 有 ema2 也有 em12，统一由脚本打上 bym-emoji-img 标记。 */
+body.bym-on .a-content-wrap img[alt^="ema"],
+body.bym-on .a-content-wrap img.bym-emoji-img {
   height: 1.6em !important;
   width: auto !important;
   vertical-align: -0.3em;
@@ -994,7 +1025,8 @@ body.bym-on .a-bottom {
   display: flex !important;
   /* 站点给这一行写死了 23px；不放开的话，单元格的内边距只会向上下溢出，行高不会真的变大 */
   height: auto !important;
-  align-items: center;
+  /* 两栏等高，分隔线才不会在左栏下方错位 */
+  align-items: stretch;
   justify-content: space-between;
   gap: 12px;
 }
@@ -1006,20 +1038,29 @@ body.bym-on .a-bottom td {
   border-top: 1px solid #f1f5f9 !important;
   background: var(--bym-surface-soft) !important;
 }
-/* 左栏按钮已移入头像列，空出来的底部左单元格不再占位 */
-body.bym-on .a-wrap.bym-actions-moved .a-bottom > .a-left,
+/* 按钮在头像列里（窄屏 / 匿名帖）时，空出来的底部左单元格不再占位 */
+body.bym-on .a-wrap.bym-actions-moved:not(.bym-actions-bottom) .a-bottom > .a-left,
 body.bym-on .a-wrap.bym-actions-empty .a-bottom > .a-left { display: none !important; }
 body.bym-on .a-bottom > td:last-child {
   flex: 1 1 auto;
   min-width: 0;
 }
-/* 底部状态（赞 / 踩 / 楼主好评）与正文左边缘对齐，不再落到头像列下方 */
-body.bym-on .a-wrap.bym-actions-moved .a-bottom > td:last-child,
+/* 宽屏：发信 / 加好友落在头像列正下方，赞踩跟在它们左边；
+   不再占用户的额外高度，也不跑到赞踩右边 */
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom > .a-left {
+  display: flex !important;
+  flex: 0 0 184px;
+  width: 184px !important;
+  box-sizing: border-box;
+}
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom > td:last-child {
+  /* 底部两栏之间有 12px gap；再补 8px，正好和正文文字左边缘对齐 */
+  padding-left: 8px !important;
+}
+/* 按钮不在底部时，状态栏仍与正文左边缘对齐 */
+body.bym-on .a-wrap.bym-actions-moved:not(.bym-actions-bottom) .a-bottom > td:last-child,
 body.bym-on .a-wrap.bym-actions-empty .a-bottom > td:last-child {
   padding-left: calc(184px + 20px) !important;
-}
-body.bym-on .a-wrap.bym-anon .a-bottom > td:last-child {
-  padding-left: calc(104px + 20px) !important;
 }
 body.bym-on .a-status {
   float: none !important;
@@ -1059,6 +1100,168 @@ body.bym-on .a-back {
   text-decoration: none !important;
 }
 body.bym-on .a-back:hover { color: var(--bym-accent) !important; }
+
+/* 宽屏非匿名楼层：发信 / 加好友并到赞踩这一行，减少卡片高度。
+   窄屏（<=900px）由脚本把按钮放回用户框，行为与之前一致。 */
+body.bym-on .a-wrap.bym-actions-bottom .a-status { margin-right: 0 !important; }
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom .a-func-info {
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  flex-flow: row nowrap;
+  align-items: center;
+  gap: 6px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  font-size: 11.5px;
+}
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom .a-func-info li {
+  position: relative;
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 4px 9px !important;
+  box-sizing: border-box;
+  border-radius: 8px !important;
+  background: var(--bym-accent-soft) !important;
+  transition: background .15s ease;
+}
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom .a-func-info li:hover {
+  background: #dbe7fb !important;
+}
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom .a-func-info li a {
+  position: static !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 2px;
+  width: auto !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  color: var(--bym-text-mid) !important;
+  font-size: 11.5px !important;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-decoration: none !important;
+}
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom .a-func-info li a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+}
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom .a-func-info li:hover a {
+  color: var(--bym-accent-strong) !important;
+}
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom .a-func-info samp {
+  flex: 0 0 16px;
+  position: relative;
+  z-index: 1;
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0 2px 0 0 !important;
+  opacity: .75;
+  pointer-events: none;
+}
+body.bym-on .a-wrap.bym-actions-bottom .a-back {
+  float: none !important;
+  margin-left: auto !important;
+}
+/* 两种落点都要压住上面的 li 布局规则 */
+body.bym-on .a-body .a-left .a-func-info li.bym-action-view,
+body.bym-on .a-wrap.bym-actions-bottom .a-bottom .a-func-info li.bym-action-view {
+  display: none !important;
+}
+
+/* ---------- 媒体外链卡片：先占位，点击后才加载播放器 ---------- */
+body.bym-on .bym-embed {
+  margin: 10px 0 12px;
+  border: 1px solid var(--bym-surface-muted);
+  border-radius: 10px;
+  background: var(--bym-surface);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+body.bym-on .bym-embed-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--bym-surface-muted);
+  background: var(--bym-surface-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+body.bym-on .bym-embed-badge {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bym-accent-soft);
+  color: var(--bym-accent-strong);
+  font-size: 11px;
+}
+body.bym-on .bym-embed-origin {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bym-text-muted) !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none !important;
+}
+body.bym-on .bym-embed-origin:hover { color: var(--bym-accent-strong) !important; }
+body.bym-on .bym-embed-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  border: 0;
+  background: #0f172a;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1.5;
+  cursor: pointer;
+}
+body.bym-on .bym-embed-body:hover { color: #fff; }
+body.bym-on .bym-embed-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding-left: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .14);
+  font-size: 18px;
+  box-sizing: border-box;
+}
+body.bym-on .bym-embed-tip { opacity: .7; }
+body.bym-on .bym-embed-loaded .bym-embed-body {
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+body.bym-on .bym-embed-body iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+body.bym-on .bym-embed-audio .bym-embed-body {
+  aspect-ratio: auto;
+  height: 66px;
+  background: var(--bym-surface-soft);
+}
+body.bym-on .bym-embed-audio .bym-embed-play { display: none; }
 
 `;
 
@@ -1132,7 +1335,7 @@ body.bym-on .a-nice-comment-item {
   width: auto !important;
   max-width: 100% !important;
   margin: 0 !important;
-  padding: 12px 14px !important;
+  padding: 6px 14px !important;
   box-sizing: border-box;
 }
 body.bym-on .a-nice-comment-item + .a-nice-comment-item {
@@ -1181,7 +1384,8 @@ body.bym-on .a-nice-comment-content {
   margin-bottom: 6px !important;
   color: #3f3a33 !important;
   font-size: 14px !important;
-  line-height: 1.75 !important;
+  /* 和普通楼层正文保持一致的行距 */
+  line-height: 1.6 !important;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -1397,7 +1601,7 @@ body.bym-on #bot_info {
 
   const CSS_RESPONSIVE = String.raw`
 /* ---------- 窄屏适配 ---------- */
-@media (max-width: 900px) {
+@media (max-width: 899.98px) {
   body.bym-on #top_menu { display: block !important; margin-left: auto !important; }
   body.bym-on #top_menu ul {
     flex-wrap: wrap;
@@ -1411,7 +1615,7 @@ body.bym-on #bot_info {
   body.bym-on #body > .t-pre,
   body.bym-on #body > .t-pre-bottom { padding: 6px 8px !important; gap: 6px; }
   body.bym-on .t-btn a { padding: 4px 9px !important; font-size: 12px !important; }
-  body.bym-on #body > .b-head { font-size: 17px !important; padding: 13px 16px !important; }
+  body.bym-on #body > .b-head { font-size: 16px !important; padding: 13px 16px !important; }
   body.bym-on.bym-menu-open #menu {
     top: 60px !important;
     left: 10px !important;
@@ -1484,7 +1688,7 @@ body.bym-on #bot_info {
   body.bym-on .a-func { gap: 2px 10px !important; }
   body.bym-on .a-content { padding: 14px 16px 16px !important; }
   body.bym-on .a-nice-comment { margin: 0 8px 8px !important; }
-  body.bym-on .a-nice-comment-item { padding: 10px !important; gap: 12px; }
+  body.bym-on .a-nice-comment-item { padding: 6px 10px !important; gap: 12px; }
   body.bym-on .a-nice-comment-face {
     flex-basis: 48px !important;
     width: 48px !important;
@@ -1496,9 +1700,9 @@ body.bym-on #bot_info {
     padding: 2px !important;
     border-radius: 9px !important;
   }
-  body.bym-on .a-nice-comment-content { font-size: 13.5px !important; }
-  /* 窄屏头像列已变成顶部横条，底部状态恢复通栏 */
-  body.bym-on .a-wrap.bym-actions-moved .a-bottom > td:last-child,
+  /* 窄屏头像列已变成顶部横条，底部状态恢复通栏。
+     :not(.bym-actions-bottom) 是为了压过上面宽屏缩进规则的同名选择器优先级 */
+  body.bym-on .a-wrap.bym-actions-moved:not(.bym-actions-bottom) .a-bottom > td:last-child,
   body.bym-on .a-wrap.bym-actions-empty .a-bottom > td:last-child,
   body.bym-on .a-wrap.bym-anon .a-bottom > td:last-child {
     padding-left: 16px !important;
@@ -1670,8 +1874,52 @@ body.bym-on #bym-floatbar { display: block; }
 }
 #bym-floatbar a:hover { color: var(--bym-accent) !important; }
 
+/* 右下角：回到本楼顶部。只在楼层很高、楼顶已经滚出视口时出现 */
+#bym-floor-top {
+  position: fixed;
+  right: 14px;
+  bottom: calc(var(--bym-composer-h, 54px) + 72px);
+  z-index: 2147483000;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  border: 1px solid var(--bym-border-strong);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .94);
+  color: var(--bym-text-mid);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 22px -16px rgba(15, 23, 42, .55);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease, visibility .16s ease;
+}
+#bym-floor-top.bym-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+#bym-floor-top .bym-floor-top-arrow {
+  padding: 0px 0px 3.5px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--bym-accent);
+}
+#bym-floor-top.bym-visible:hover {
+  background: #fff;
+  border-color: var(--bym-accent);
+}
+
 /* 桌面端：底部工具栏吸底，快捷回复只占一行 */
-@media (min-width: 901px) {
+@media (min-width: 900px) {
   body.bym-on #body > .t-pre-bottom {
     position: fixed !important;
     left: 50% !important;
@@ -1699,11 +1947,11 @@ body.bym-on #bym-floatbar { display: block; }
 /* 底部浮层会遮住末尾内容，给页面和页脚留出空间 */
 body.bym-on #main { padding-bottom: calc(var(--bym-composer-h, 54px) + 38px) !important; }
 body.bym-on #bot_foot { margin-bottom: calc(var(--bym-composer-h, 54px) + 42px) !important; }
-@media (min-width: 901px) {
+@media (min-width: 900px) {
   body.bym-on #main { padding-bottom: calc(var(--bym-composer-h, 54px) + 92px) !important; }
   body.bym-on #bot_foot { margin-bottom: calc(var(--bym-composer-h, 54px) + 102px) !important; }
 }
-@media (max-width: 900px) {
+@media (max-width: 899.98px) {
   body.bym-on #main { padding-bottom: calc(var(--bym-composer-h, 54px) + 38px) !important; }
   body.bym-on #bot_foot { margin-bottom: calc(var(--bym-composer-h, 54px) + 42px) !important; }
   body.bym-on #bym-dock { bottom: calc(var(--bym-composer-h, 54px) + 22px); }
@@ -1712,6 +1960,10 @@ body.bym-on #bot_foot { margin-bottom: calc(var(--bym-composer-h, 54px) + 42px) 
     top: 6px;
     width: calc(100vw - 20px);
     height: 38px;
+  }
+  #bym-floor-top {
+    right: 10px;
+    bottom: calc(var(--bym-composer-h, 54px) + 22px);
   }
 }
 
@@ -2168,6 +2420,32 @@ html.bym-dark body.bym-on .a-body .a-left .a-func-info li:hover { background: #2
 html.bym-dark body.bym-on .a-body .a-left .a-func-info li a { color: #aab6c6 !important; }
 html.bym-dark body.bym-on .a-body .a-left .a-func-info li:hover a { color: #cfe0ff !important; }
 html.bym-dark body.bym-on .a-content { color: #d7dee8 !important; }
+html.bym-dark body.bym-on .a-content-wrap .markdown table tr,
+html.bym-dark body.bym-on .a-content-wrap .markdown table tr td {
+  background: #161d27;
+}
+html.bym-dark body.bym-on .a-content-wrap .markdown table thead tr,
+html.bym-dark body.bym-on .a-content-wrap .markdown table thead tr td {
+  background: #1e2836;
+}
+html.bym-dark body.bym-on .a-content-wrap .markdown table tbody tr:nth-child(2n) td {
+  background: #1a2230;
+}
+html.bym-dark body.bym-on .a-content-wrap .markdown table td,
+html.bym-dark body.bym-on .a-content-wrap .markdown table th {
+  border-color: #2a3444;
+}
+html.bym-dark body.bym-on .bym-embed {
+  border-color: #222c3a;
+  background: #131a23;
+}
+html.bym-dark body.bym-on .bym-embed-head {
+  border-bottom-color: #222c3a;
+  background: #1a2230;
+}
+html.bym-dark body.bym-on .bym-embed-origin { color: #94a3b8 !important; }
+html.bym-dark body.bym-on .bym-embed-origin:hover { color: #7fb0f5 !important; }
+html.bym-dark body.bym-on .bym-embed-audio .bym-embed-body { background: #1a2230; }
 html.bym-dark body.bym-on .bym-meta {
   color: #7d8a9c;
   border-bottom-color: #222c3a;
@@ -2295,6 +2573,17 @@ html.bym-dark #bym-floatbar .bym-float-path-text { color: var(--bym-text-faint);
 html.bym-dark #bym-floatbar a { color: #aab6c6 !important; }
 html.bym-dark #bym-floatbar a:hover { color: #7fb0f5 !important; }
 
+html.bym-dark #bym-floor-top {
+  background: rgba(22, 29, 39, .95);
+  border-color: #263041;
+  color: #c7d2e0;
+  box-shadow: 0 10px 30px -22px rgba(0, 0, 0, .9);
+}
+html.bym-dark #bym-floor-top.bym-visible:hover {
+  background: #1e2836;
+  border-color: #3b5a86;
+}
+
 #bym-emoji-toggle { background: #f4f7fc; color: var(--bym-text-mid); border-color: var(--bym-border-strong); }
 html.bym-dark body.bym-on #bym-emoji-toggle {
   background: #1e2836;
@@ -2416,6 +2705,168 @@ html.bym-dark body.bym-on .ui-dialog.bym-dialog-profile .u-info > header {
 html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
 `;
 
+  const CSS_LIGHTBOX = String.raw`
+/* ---------- 图片灯箱：页内浮动预览，多图可翻页 ---------- */
+#bym-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 76px 88px;
+  background: rgba(8, 12, 18, .93);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+#bym-lightbox.bym-lightbox-open { display: flex; opacity: 1; }
+#bym-lightbox.bym-lb-leaving {
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+}
+#bym-lightbox .bym-lb-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: inherit;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+#bym-lightbox img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 152px);
+  border-radius: 8px;
+  background: #fff;
+  object-fit: contain;
+  box-shadow: 0 30px 90px -24px rgba(0, 0, 0, .9), 0 0 0 1px rgba(255, 255, 255, .06);
+  opacity: 1;
+  transition: transform .3s cubic-bezier(.22, .72, .28, 1), opacity .22s ease;
+  will-change: transform, opacity;
+  user-select: none;
+  -webkit-user-drag: none;
+  cursor: zoom-in;
+  touch-action: none;
+}
+#bym-lightbox.bym-lb-zoomed img { cursor: zoom-out; }
+#bym-lightbox img.bym-lb-dragging { transition: none !important; }
+#bym-lightbox img.bym-lb-loading { opacity: 0 !important; transition: none; }
+#bym-lightbox img.bym-lb-from-thumb {
+  transition: none;
+  opacity: .35;
+  transform: translate(var(--bym-lb-dx, 0), var(--bym-lb-dy, 0)) scale(var(--bym-lb-sx, 1), var(--bym-lb-sy, 1));
+}
+#bym-lightbox img.bym-lb-pop {
+  transition: none;
+  opacity: .35;
+  transform: scale(.94);
+}
+#bym-lightbox img.bym-lb-to-thumb {
+  opacity: .2;
+  transform: translate(var(--bym-lb-dx, 0), var(--bym-lb-dy, 0)) scale(var(--bym-lb-sx, 1), var(--bym-lb-sy, 1));
+}
+#bym-lightbox .bym-lb-btn {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .1);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease;
+}
+#bym-lightbox .bym-lb-btn:hover { background: rgba(255, 255, 255, .22); }
+#bym-lightbox .bym-lb-btn:active { transform: scale(.94); }
+#bym-lightbox .bym-lb-btn svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+#bym-lightbox .bym-lb-prev { left: 18px; top: 50%; transform: translateY(-50%); }
+#bym-lightbox .bym-lb-prev:active { transform: translateY(-50%) scale(.94); }
+#bym-lightbox .bym-lb-next { right: 18px; top: 50%; transform: translateY(-50%); }
+#bym-lightbox .bym-lb-next:active { transform: translateY(-50%) scale(.94); }
+#bym-lightbox .bym-lb-top {
+  position: absolute;
+  z-index: 3;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+#bym-lightbox .bym-lb-count {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+  color: rgba(255, 255, 255, .9);
+  font: 12px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+#bym-lightbox .bym-lb-close {
+  position: static;
+  width: 42px;
+  height: 42px;
+  pointer-events: auto;
+}
+#bym-lightbox .bym-lb-caption {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  max-width: min(720px, calc(100vw - 150px));
+  padding: 6px 15px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .48);
+  color: rgba(255, 255, 255, .9);
+  font: 12.5px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+#bym-lightbox .bym-lb-caption[hidden] { display: none; }
+#bym-lightbox.bym-lb-single .bym-lb-prev,
+#bym-lightbox.bym-lb-single .bym-lb-next,
+#bym-lightbox.bym-lb-single .bym-lb-count { display: none; }
+/* 单图没有计数，关闭按钮仍靠右 */
+#bym-lightbox.bym-lb-single .bym-lb-top { justify-content: flex-end; }
+html.bym-lightbox-lock { overflow: hidden !important; }
+@media (max-width: 560px) {
+  #bym-lightbox { padding: 60px 12px 82px; }
+  #bym-lightbox .bym-lb-prev { left: 8px; }
+  #bym-lightbox .bym-lb-next { right: 8px; }
+  #bym-lightbox .bym-lb-caption { max-width: calc(100vw - 40px); }
+}
+`;
+
 /* 按页面结构拆分，便于定位；顺序与层叠优先级相关，不要随意调整。 */
   const CSS = [
     CSS_BASE,
@@ -2429,6 +2880,7 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
     CSS_DOCK,
     CSS_FLOATBAR,
     CSS_DIALOG,
+    CSS_LIGHTBOX,
     CSS_DARK,
   ].join('\n');
 
@@ -2559,6 +3011,27 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
   }
 
   function onKeydown(e) {
+    // 灯箱打开时优先处理翻页 / 关闭
+    if (isLightboxOpen()) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeLightbox();
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        e.stopPropagation();
+        stepLightbox(-1);
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        e.stopPropagation();
+        stepLightbox(1);
+        return;
+      }
+    }
     if (e.altKey && !e.ctrlKey && !e.metaKey && String(e.key).toLowerCase() === TOGGLE_KEY) {
       if (isArticlePage()) {
         e.preventDefault();
@@ -2575,6 +3048,9 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
   const movedActions = new Map(); // .a-func-info -> 原父节点
   const movedBadges = new Map();  // .a-pos -> 原父节点
   const metaTrimmed = new Map();  // .bym-meta -> 为压缩间距移除的节点
+  const sourceFolded = new Map(); // .bym-source -> 原位置占位注释
+  const strippedTitles = new Map(); // .b-head .n-left -> { node, original }
+  const mediaEmbeds = new Map(); // .bym-embed -> { anchor, parent, next }
 
   // 把正文开头的「发信人 / 标 题 / 发信站」三行收进一个弱化的 meta 区块
   // 把 meta 的前两行包进 .bym-meta-extra，第三行（发信站）留在 .bym-meta-main，
@@ -2708,24 +3184,306 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
     });
   }
 
-  // 查看 / 发信 / 加好友：从楼层底部移到左侧用户信息下方
+  // 把「※ 来源 / ※ 修改」移进发信信息折叠区，排在发信站之后。
+  // 原位置留下注释占位，切回经典版时按原样放回。
+  function foldSourceLines(wrap) {
+    const meta = wrap.querySelector('.a-content-wrap > .bym-meta');
+    const main = meta && meta.querySelector(':scope > .bym-meta-main');
+    if (!main || main.querySelector('.bym-meta-source')) return;
+    const sources = Array.from(wrap.querySelectorAll('.a-content-wrap .bym-source')).filter(
+      (font) => !font.closest('.bym-meta')
+    );
+    if (!sources.length) return;
+    const box = document.createElement('span');
+    box.className = 'bym-meta-source';
+    sources.forEach((font, index) => {
+      if (index) box.appendChild(document.createElement('br'));
+      const marker = document.createComment('bym-source');
+      if (font.parentNode) font.parentNode.insertBefore(marker, font);
+      sourceFolded.set(font, marker);
+      box.appendChild(font);
+    });
+    main.appendChild(box);
+  }
+
+  // 表情图的 alt 有 ema2、em8、em12 等多种写法
+  const EMOJI_ALT_RE = /^em[a-z]?\d*$/i;
+
+  function markEmojiImages(root) {
+    root.querySelectorAll('img[alt]').forEach((img) => {
+      if (EMOJI_ALT_RE.test((img.getAttribute('alt') || '').trim())) {
+        img.classList.add('bym-emoji-img');
+      }
+    });
+  }
+
+  function isBlankTailNode(node) {
+    if (node.nodeType === Node.TEXT_NODE) return !(node.nodeValue || '').trim();
+    if (node.nodeType !== Node.ELEMENT_NODE) return false;
+    if (node.tagName === 'BR') return true;
+    if (node.matches('img, video, iframe, audio, object, embed, hr, table')) return false;
+    if (node.tagName === 'FONT' || node.tagName === 'SPAN') {
+      if ((node.textContent || '').trim()) return false;
+      return !node.querySelector('img, video, iframe, audio, object, embed, hr');
+    }
+    return false;
+  }
+
+  // 站点在正文末尾固定写了几组 <br>，落款移进元信息后它们就变成空行。
+  // 只隐藏不删除，切回经典版时去掉标记即可原样恢复。
+  function hideBlankRun(node) {
+    let hidden = 0;
+    while (node) {
+      if (node.nodeType === Node.COMMENT_NODE) {
+        node = node.previousSibling;
+        continue;
+      }
+      if (!isBlankTailNode(node)) break;
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        node.classList.add('bym-tail-blank');
+        hidden += 1;
+      }
+      node = node.previousSibling;
+    }
+    return hidden;
+  }
+
+  function trimTrailingBlank(wrap) {
+    const box = wrap.querySelector('.a-content-wrap');
+    if (!box || wrap.dataset.bymTailTrimmed === '1') return;
+    // 精彩回复区块在楼主卡片正文里，它的前面也会留下落款移走后的空行
+    const nice = box.querySelector(':scope > #nice_view');
+    let hidden = hideBlankRun(box.lastChild);
+    if (nice) hidden += hideBlankRun(nice.previousSibling);
+    if (!hidden) return;
+    wrap.dataset.bymTailTrimmed = '1';
+  }
+
+  // 媒体外链白名单：只接管能稳定嵌入的平台；短链和需要登录的页面保持原样。
+  function parseMediaLink(raw) {
+    let url;
+    try {
+      url = new URL(raw, location.href);
+    } catch (e) {
+      return null;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    const path = url.pathname;
+    const hash = url.hash || '';
+
+    if (host === 'bilibili.com' || host === 'm.bilibili.com') {
+      const m = path.match(/\/video\/(BV[0-9A-Za-z]+|av\d+)/i);
+      if (!m) return null;
+      const id = m[1];
+      const key = /^bv/i.test(id) ? 'bvid=' + id : 'aid=' + id.slice(2);
+      const page = url.searchParams.get('p') || '1';
+      return {
+        platform: '哔哩哔哩',
+        src:
+          'https://player.bilibili.com/player.html?' + key +
+          '&page=' + encodeURIComponent(page) + '&autoplay=0&high_quality=1',
+      };
+    }
+
+    if (host === 'douyin.com' || host === 'iesdouyin.com') {
+      const m = path.match(/\/(?:share\/)?video\/(\d+)/);
+      if (!m) return null;
+      return {
+        platform: '抖音',
+        src: 'https://open.douyin.com/player/video?vid=' + m[1] + '&autoplay=0',
+      };
+    }
+
+    if (
+      host === 'youtu.be' || host === 'youtube.com' || host === 'm.youtube.com' ||
+      host === 'youtube-nocookie.com'
+    ) {
+      let id = '';
+      if (host === 'youtu.be') {
+        id = (path.split('/')[1] || '').trim();
+      } else if (path === '/watch') {
+        id = url.searchParams.get('v') || '';
+      } else {
+        const m = path.match(/^\/(?:embed|shorts|live)\/([0-9A-Za-z_-]+)/);
+        if (m) id = m[1];
+      }
+      if (!/^[0-9A-Za-z_-]{6,}$/.test(id)) return null;
+      return { platform: 'YouTube', src: 'https://www.youtube-nocookie.com/embed/' + id + '?rel=0' };
+    }
+
+    if (host === 'v.qq.com') {
+      const m = path.match(/\/([0-9A-Za-z]{6,})\.html$/);
+      if (!m) return null;
+      return { platform: '腾讯视频', src: 'https://v.qq.com/txp/iframe/player.html?vid=' + m[1] };
+    }
+
+    if (host === 'v.youku.com') {
+      const m = path.match(/\/v_show\/id_([0-9A-Za-z=]+)\.html/);
+      if (!m) return null;
+      return { platform: '优酷', src: 'https://player.youku.com/embed/' + m[1] };
+    }
+
+    if (host === 'acfun.cn' || host === 'm.acfun.cn') {
+      const m = path.match(/\/v\/(ac\d+)/i);
+      if (!m) return null;
+      return { platform: 'AcFun', src: 'https://www.acfun.cn/player/' + m[1] };
+    }
+
+    if (host === 'music.163.com') {
+      let kind = '';
+      let id = '';
+      if ((path === '/song' || path === '/album' || path === '/playlist') && url.searchParams.get('id')) {
+        kind = path.slice(1);
+        id = url.searchParams.get('id');
+      } else {
+        const hm = hash.match(/^#!?\/?(song|album|playlist)\?id=(\d+)/);
+        const pm = path.match(/\/(song|album|playlist)\/(\d+)/);
+        if (hm) {
+          kind = hm[1];
+          id = hm[2];
+        } else if (pm) {
+          kind = pm[1];
+          id = pm[2];
+        }
+      }
+      if (!/^\d+$/.test(id)) return null;
+      const type = kind === 'album' ? 1 : kind === 'playlist' ? 3 : 2;
+      return {
+        platform: '网易云音乐',
+        audio: true,
+        src:
+          'https://music.163.com/outchain/player?type=' + type +
+          '&id=' + id + '&auto=0&height=66',
+      };
+    }
+
+    if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+      const m = path.match(/\/(?:video\/)?(\d+)/);
+      if (!m) return null;
+      return { platform: 'Vimeo', src: 'https://player.vimeo.com/video/' + m[1] };
+    }
+
+    return null;
+  }
+
+  // 媒体链接先显示成一张轻量卡片，点击后才真正创建 iframe，
+  // 避免一个帖子里多个播放器同时加载脚本和封面。
+  function decorateMediaLinks(wrap) {
+    wrap.querySelectorAll('.a-content-wrap a[href]').forEach((a) => {
+      if (a.closest('.bym-meta, .bym-embed')) return;
+      const info = parseMediaLink(a.getAttribute('href'));
+      if (!info) return;
+      const parent = a.parentNode;
+      if (!parent) return;
+
+      const box = document.createElement('div');
+      box.className = 'bym-embed' + (info.audio ? ' bym-embed-audio' : '');
+      box.dataset.src = info.src;
+
+      const head = document.createElement('div');
+      head.className = 'bym-embed-head';
+      const badge = document.createElement('span');
+      badge.className = 'bym-embed-badge';
+      badge.textContent = info.platform;
+      head.appendChild(badge);
+      a.classList.add('bym-embed-origin');
+
+      const body = document.createElement('button');
+      body.type = 'button';
+      body.className = 'bym-embed-body';
+      const play = document.createElement('span');
+      play.className = 'bym-embed-play';
+      play.textContent = '▶';
+      const tip = document.createElement('span');
+      tip.className = 'bym-embed-tip';
+      tip.textContent = '点击加载' + info.platform + '播放器';
+      body.append(play, tip);
+
+      box.append(head, body);
+      parent.insertBefore(box, a);
+      head.appendChild(a);
+      mediaEmbeds.set(box, a);
+    });
+  }
+
+  function loadEmbed(box) {
+    if (!box || box.classList.contains('bym-embed-loaded')) return;
+    const src = box.dataset.src;
+    const body = box.querySelector('.bym-embed-body');
+    if (!src || !body) return;
+    const frame = document.createElement('iframe');
+    frame.src = src;
+    frame.loading = 'lazy';
+    frame.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media';
+    frame.allowFullscreen = true;
+    frame.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+    frame.title = '嵌入式播放器';
+    box.classList.add('bym-embed-loaded');
+    body.textContent = '';
+    body.appendChild(frame);
+  }
+
+  function onEmbedClick(event) {
+    if (!state.enabled || !isModern()) return;
+    const btn = event.target.closest && event.target.closest('.bym-embed-body');
+    if (!btn) return;
+    const box = btn.closest('.bym-embed');
+    if (!box) return;
+    loadEmbed(box);
+  }
+
+  // 标题条默认写成「文章主题: xxx」，简约版直接显示标题本身
+  function stripTitlePrefix() {
+    const el = document.querySelector('#body .b-head .n-left');
+    if (!el || strippedTitles.has(el)) return;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+      const m = /^(\s*文章主题\s*[:：]\s*)/.exec(node.nodeValue || '');
+      if (!m) continue;
+      strippedTitles.set(el, { node, original: node.nodeValue });
+      node.nodeValue = node.nodeValue.slice(m[1].length);
+      break;
+    }
+  }
+
+  // 宽屏非匿名楼层把发信 / 加好友并到赞踩行；窄屏放回用户框（旧行为）。
+  // 用 matchMedia 而不是只量一次宽度：浏览器缩放也会让媒体查询跟着变化。
+  const narrowActionsQuery =
+    typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 899.98px)') : null;
+
+  function placeUserActions(wrap, info, left) {
+    const statusCell = wrap.querySelector('.a-bottom > td:last-child');
+    const bottomLeft = wrap.querySelector('.a-bottom > .a-left');
+    const hasAction = !!info.querySelector('.bym-action-mess, .bym-action-friend');
+    const toBottom =
+      !!statusCell && !!bottomLeft && hasAction && !wrap.classList.contains('bym-anon') &&
+      !(narrowActionsQuery && narrowActionsQuery.matches);
+    if (toBottom) {
+      // 宽屏：放在头像列正下方的底部左单元格里，位置在赞踩左侧
+      if (info.parentNode !== bottomLeft) bottomLeft.appendChild(info);
+      wrap.classList.add('bym-actions-bottom');
+      return;
+    }
+    if (left && info.parentNode !== left) left.appendChild(info);
+    wrap.classList.remove('bym-actions-bottom');
+  }
+
+  // 查看 / 发信 / 加好友：从楼层底部移出（默认进左侧用户信息栏）
   function decorateUserActions(wrap) {
     const left = wrap.querySelector('.a-body > .a-left');
-    const info = wrap.querySelector(
-      '.a-bottom .a-left .a-func-info, .a-body > .a-left .a-func-info'
-    );
+    // 可能在原来的底部左单元格、左栏，或（宽屏）已并到赞踩行
+    const info = wrap.querySelector('.a-func-info');
     if (!left || !info) return;
-    if (!left.contains(info)) {
-      if (!movedActions.has(info)) movedActions.set(info, info.parentNode);
-      left.appendChild(info);
-    } else if (!movedActions.has(info)) {
-      // 兼容已经移动过的页面（例如旧版本保存下来的 DOM）
+    if (!movedActions.has(info)) {
+      // 记下站点原来的位置（底部左单元格），切回经典版时放回去
       const bottomLeft = wrap.querySelector('.a-bottom > .a-left');
-      if (bottomLeft) movedActions.set(info, bottomLeft);
+      movedActions.set(info, bottomLeft || info.parentNode);
     }
     wrap.classList.add('bym-actions-moved');
 
-    // 标记「查看 / 加好友」：查看按钮隐藏，改由头像点击触发；
+    // 标记「查看 / 发信 / 加好友」：查看按钮隐藏，改由头像点击触发；
     // 加好友稍微加宽
     info.querySelectorAll('li').forEach((li) => {
       const a = li.querySelector('a');
@@ -2733,8 +3491,11 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
       const text = (a.textContent || '').replace(/\s+/g, '');
       const href = a.getAttribute('href') || '';
       if (text === '查看' || href.includes('/user/query/')) li.classList.add('bym-action-view');
+      if (text.includes('发信')) li.classList.add('bym-action-mess');
       if (text.includes('加好友')) li.classList.add('bym-action-friend');
     });
+
+    placeUserActions(wrap, info, left);
 
     // 头像本身包一层真实链接（和精彩回复头像一样），
     // 这样用户点的是普通 <a>，站点自己的 click_a 会打开用户资料对话框。
@@ -2772,14 +3533,30 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
     });
   }
 
-  // 精彩回复：补一个和楼层一致的「只看此ID」
+  // 按「第 N 楼」里的帖子 ID 找对应楼层。
+  // 不能直接在整棵文档里 querySelector：精彩回复区块本身也在楼主卡片内，
+  // 回复链接又排在真正的楼层之前，closest('.a-wrap') 会落到楼主卡片上，
+  // 结果「只看此ID」筛成了楼主。这里只在楼层表头的操作区里找。
+  function findFloorByPostId(postId) {
+    const wraps = document.querySelectorAll('#body .a-wrap');
+    for (const wrap of wraps) {
+      const links = wrap.querySelectorAll('.a-head a[href*="/post/"]');
+      for (const a of links) {
+        const m = (a.getAttribute('href') || '').match(/\/post\/(\d+)/);
+        if (m && m[1] === postId) return wrap;
+      }
+    }
+    return null;
+  }
+
+  // 精彩回复：补一个和楼层一致的「只看此ID」；匿名帖补上作者 ID
   function decorateNiceReplies() {
     const board = getBoard();
     const id = getArticleId();
     if (!board || !id) return;
     document.querySelectorAll('#body .a-nice-comment-item').forEach((item) => {
       const func = item.querySelector('.a-nice-comment-func');
-      if (!func || func.querySelector('.bym-nice-only')) return;
+      if (!func) return;
       const idLink = item.querySelector('.a-nice-comment-id a');
       let author = idLink ? (idLink.textContent || '').trim() : '';
       // 匿名帖的精彩回复不显示作者 ID，用「第 N 楼」链接反查对应楼层的作者
@@ -2787,21 +3564,33 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
         const floorLink = item.querySelector('.a-nice-comment-floor');
         const m = floorLink && (floorLink.getAttribute('href') || '').match(/[?&]s=(\d+)/);
         if (m) {
-          const floor = document
-            .querySelector(`#body .a-wrap a[href*="/post/${m[1]}"]`)
-            ?.closest('.a-wrap');
+          const floor = findFloorByPostId(m[1]);
           const name = floor && floor.querySelector('.a-head .a-u-name');
           author = name ? (name.textContent || '').trim() : '';
         }
+        // 站点给匿名 IDs 留的是空链接，把作者 ID 补出来并指向同一个筛选视图
+        if (author && idLink && !(idLink.textContent || '').trim()) {
+          idLink.textContent = author;
+          idLink.href = `/article/${board}/${id}?au=${encodeURIComponent(author)}`;
+          idLink.title = '只看此ID';
+          idLink.classList.add('bym-nice-id');
+        }
       }
       if (!author) return;
+      // encodeURIComponent 会同时处理 IWhisper#175 里的 #
+      const href = `/article/${board}/${id}?au=${encodeURIComponent(author)}`;
+      const existing = func.querySelector('.bym-nice-only a');
+      if (existing) {
+        // 旧版本写入过错误链接时顺手纠正
+        if (existing.getAttribute('href') !== href) existing.setAttribute('href', href);
+        return;
+      }
       const li = document.createElement('li');
       li.className = 'bym-nice-only';
       const icon = document.createElement('samp');
       icon.className = 'ico-pos-user';
       const a = document.createElement('a');
-      // encodeURIComponent 会同时处理 IWhisper#175 里的 #
-      a.href = `/article/${board}/${id}?au=${encodeURIComponent(author)}`;
+      a.href = href;
       a.textContent = '只看此ID';
       li.append(icon, a);
       func.appendChild(li);
@@ -3624,6 +4413,8 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
 
   // 切回经典版时把移动过的节点放回原处（用户操作、徽标、meta 区块）
   function restoreArticle() {
+    closeLightbox();
+
     // 拆掉头像外面新增的链接，恢复站点原来的 div > img 结构
     document.querySelectorAll('.a-u-img > a.bym-avatar-link').forEach((a) => {
       const face = a.parentNode;
@@ -3657,6 +4448,45 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
       meta.replaceWith(...Array.from(meta.childNodes));
     });
     metaTrimmed.clear();
+
+    // 把移进发信信息折叠区的「※ 来源 / 修改」放回正文原位置
+    sourceFolded.forEach((marker, font) => {
+      if (marker.parentNode) {
+        marker.replaceWith(font);
+      } else if (font.parentNode) {
+        // 原占位点已随页面重绘消失：至少放回正文末尾，避免丢内容
+        const content = document.querySelector('#body .a-content-wrap');
+        if (content) content.appendChild(font);
+      }
+    });
+    sourceFolded.clear();
+    document.querySelectorAll('.bym-meta-source').forEach((box) => box.remove());
+
+    // 正文末尾原本的空行恢复显示
+    document.querySelectorAll('#body .bym-tail-blank').forEach((el) => {
+      el.classList.remove('bym-tail-blank');
+    });
+    document.querySelectorAll('#body .a-wrap').forEach((wrap) => {
+      delete wrap.dataset.bymTailTrimmed;
+    });
+
+    // 媒体外链恢复成原始链接，去掉占位的播放器卡片
+    mediaEmbeds.forEach((anchor, box) => {
+      if (box.isConnected && anchor) box.replaceWith(anchor);
+    });
+    mediaEmbeds.clear();
+    document.querySelectorAll('#body .bym-embed-origin').forEach((a) => {
+      a.classList.remove('bym-embed-origin');
+    });
+    document.querySelectorAll('#body img.bym-emoji-img').forEach((img) => {
+      img.classList.remove('bym-emoji-img');
+    });
+
+    // 标题条恢复「文章主题:」前缀
+    strippedTitles.forEach((entry) => {
+      if (entry.node.isConnected) entry.node.nodeValue = entry.original;
+    });
+    strippedTitles.clear();
 
     // 脚本添加的类 / 徽标在经典版下没有意义，一并清掉
     document.querySelectorAll('#body .bym-source').forEach((el) => {
@@ -3697,7 +4527,7 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
       delete el.dataset.bymSearchTitle;
     });
     document.querySelectorAll('#body .a-wrap').forEach((wrap) => {
-      wrap.classList.remove('bym-anon', 'bym-actions-empty', 'bym-actions-moved');
+      wrap.classList.remove('bym-anon', 'bym-actions-empty', 'bym-actions-moved', 'bym-actions-bottom');
     });
   }
 
@@ -3714,6 +4544,15 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
     });
     metaTrimmed.forEach((nodes, meta) => {
       if (!meta.isConnected) metaTrimmed.delete(meta);
+    });
+    sourceFolded.forEach((marker, font) => {
+      if (!font.isConnected || !marker.isConnected) sourceFolded.delete(font);
+    });
+    strippedTitles.forEach((entry, el) => {
+      if (!el.isConnected || !entry.node.isConnected) strippedTitles.delete(el);
+    });
+    mediaEmbeds.forEach((anchor, box) => {
+      if (!box.isConnected) mediaEmbeds.delete(box);
     });
 
     const wraps = Array.from(document.querySelectorAll('#body .a-wrap'));
@@ -3737,6 +4576,10 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
       }
       decorateMeta(wrap);
       decorateSource(wrap);
+      foldSourceLines(wrap);
+      trimTrailingBlank(wrap);
+      markEmojiImages(wrap);
+      decorateMediaLinks(wrap);
       decorateUserActions(wrap);
 
       // 底部左侧单元格为空（匿名帖 / 按钮已移走）时不再占位
@@ -3748,8 +4591,12 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
       }
 
       // 匿名帖没有用户名 / 等级信息，左栏收窄
-      const hasUser = !!wrap.querySelector('.a-body .a-u-uid, .a-body .a-u-info, .a-body .a-func-info');
+      const hasUser = !!wrap.querySelector('.a-body .a-u-uid, .a-body .a-u-info, .a-func-info');
       wrap.classList.toggle('bym-anon', !hasUser);
+      // 等匿名标记确定后再决定发信 / 加好友的落点
+      const actionInfo = wrap.querySelector('.a-func-info');
+      const actionLeft = wrap.querySelector('.a-body > .a-left');
+      if (actionInfo && actionLeft) placeUserActions(wrap, actionInfo, actionLeft);
 
       // 匿名帖没有真实用户 ID，按 ID 搜索没有对象，隐藏；
       // 赞 / 踩保留（IWhisper 也能点，只是站点可能返回「未知的论坛ID」，
@@ -3765,6 +4612,7 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
       decorateFloorOpBadge(wrap, index > 0 && !!opName && name === opName);
     });
 
+    stripTitlePrefix();
     decorateCollectLinks(document.querySelector('#body'));
     decorateSearchLabels();
     fixOnlyIdLinks(document.querySelector('#body'));
@@ -3774,6 +4622,8 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
     syncFloatbar();
     updateFloatbarVisibility();
     updateBottomBarFlow();
+    mountFloorTopButton();
+    updateFloorTopButton();
   }
 
   function scheduleDecorate() {
@@ -3884,6 +4734,88 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
       floatbar.classList.remove('bym-visible');
     }
     lastScrollY = y;
+  }
+
+  // 右下角「回到本楼顶部」：楼层明显高于视口、楼顶已经滚出屏幕时出现。
+  // 用视口中线判断当前楼层；滚动事件按帧合并，长列表里也不会反复重排。
+  let floorTopBtn = null;
+  let floorTopLabel = null;
+  let floorTopTarget = null;
+  let floorTopFrame = 0;
+
+  function mountFloorTopButton() {
+    if (!document.body) return;
+    if (!floorTopBtn) {
+      floorTopBtn = document.createElement('button');
+      floorTopBtn.id = 'bym-floor-top';
+      floorTopBtn.type = 'button';
+      const arrow = document.createElement('span');
+      arrow.className = 'bym-floor-top-arrow';
+      arrow.textContent = '↑';
+      floorTopLabel = document.createElement('span');
+      floorTopLabel.className = 'bym-floor-top-label';
+      floorTopBtn.append(arrow, floorTopLabel);
+      floorTopBtn.addEventListener('click', () => {
+        const target = floorTopTarget;
+        if (!target || !target.isConnected) return;
+        const y = window.scrollY || window.pageYOffset || 0;
+        const top = target.getBoundingClientRect().top + y;
+        // 顶部浮动栏会挡住楼层标题，跳转时给它留出位置
+        const offset = floatbar && floatbar.classList.contains('bym-visible') ? 58 : 12;
+        window.scrollTo({ top: Math.max(0, top - offset), behavior: 'smooth' });
+      });
+    }
+    if (!document.body.contains(floorTopBtn)) document.body.appendChild(floorTopBtn);
+  }
+
+  function currentFloorForTop() {
+    const wraps = document.querySelectorAll('#body .a-wrap');
+    if (!wraps.length) return null;
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    const mid = vh * 0.5;
+    let active = null;
+    let rect = null;
+    for (let i = 0; i < wraps.length; i += 1) {
+      const current = wraps[i].getBoundingClientRect();
+      // 跳过被站点隐藏的楼层，否则它的 0 尺寸会把当前楼层带偏
+      if (!current.width && !current.height) continue;
+      if (current.top <= mid) {
+        active = wraps[i];
+        rect = current;
+      } else {
+        break;
+      }
+    }
+    if (!active || !rect) return null;
+    // 只服务真正很高的楼层；短楼层顶部本来就在附近，不需要这个按钮
+    if (rect.height <= vh * 0.9) return null;
+    if (rect.top > -120 || rect.bottom < 24) return null;
+    return active;
+  }
+
+  function updateFloorTopButton() {
+    if (!floorTopBtn) return;
+    const target = state.enabled && isModern() ? currentFloorForTop() : null;
+    floorTopTarget = target;
+    if (!target) {
+      floorTopBtn.classList.remove('bym-visible');
+      return;
+    }
+    const pos = target.querySelector('.a-head .a-pos');
+    const text = pos ? (pos.textContent || '').trim() : '';
+    if (floorTopLabel && floorTopLabel.textContent !== text) floorTopLabel.textContent = text;
+    const name = text || '本楼';
+    floorTopBtn.setAttribute('aria-label', '回到' + name + '顶部');
+    floorTopBtn.title = '回到' + name + '顶部';
+    floorTopBtn.classList.add('bym-visible');
+  }
+
+  function scheduleFloorTopUpdate() {
+    if (floorTopFrame) return;
+    floorTopFrame = requestAnimationFrame(() => {
+      floorTopFrame = 0;
+      updateFloorTopButton();
+    });
   }
 
   // 底部工具栏：默认悬浮；滚到页面末尾时回到最后一张卡片之后
@@ -4017,6 +4949,516 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
     document.documentElement.style.removeProperty('--bym-composer-h');
   }
 
+  // 表情面板打开后，点面板和快捷回复区以外的地方视为关闭
+  function closeEmojiPanel(comment) {
+    if (!comment || !comment.classList.contains('bym-emoji-open')) return;
+    comment.classList.remove('bym-emoji-open');
+    const btn = comment.querySelector('#bym-emoji-toggle');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+
+  function onDocumentClickOutsideEmoji(event) {
+    if (!state.enabled || !isModern()) return;
+    const comment = document.querySelector('.a-comment');
+    if (!comment || !comment.classList.contains('bym-emoji-open')) return;
+    if (comment.contains(event.target)) return;
+    closeEmojiPanel(comment);
+  }
+
+  /* 图片灯箱：正文 / 精彩回复里的图片点击后在页内浮层预览，多图可翻页。
+     交互参照 Fancybox 的缩略图放大 / 说明文字 / 上下张切换，但不引入
+     jQuery + Fancybox（约 170KB），只保留和帖子页相关的部分。 */
+  let lightboxEl = null;
+  let lightboxImg = null;
+  let lightboxCount = null;
+  let lightboxCaption = null;
+  let lightboxPrev = null;
+  let lightboxNext = null;
+  let lightboxClose = null;
+  let lightboxItems = [];
+  let lightboxIndex = 0;
+  let lightboxReturn = null;
+  let lightboxClosing = false;
+  // 灯箱内点击放大：以点击位置为中心缩放，放大后可以拖动查看
+  const LIGHTBOX_ZOOM = 2.2;
+  let lightboxZoom = 1;
+  let lightboxPanX = 0;
+  let lightboxPanY = 0;
+  let lightboxDrag = null;
+
+  function imageGroup(img) {
+    return img.closest('.a-nice-comment-content') || img.closest('.a-content');
+  }
+
+  // 只接管正文和精彩回复里的图片；头像、表情、站内图标都跳过
+  function lightboxEligible(img) {
+    if (!img || img.tagName !== 'IMG' || img.closest('#bym-lightbox')) return false;
+    if (!imageGroup(img)) return false;
+    if (img.closest('.a-u-img, .a-nice-comment-face, .a-head, .a-bottom, .a-left, .a-comment, .bym-embed')) {
+      return false;
+    }
+    const alt = (img.getAttribute('alt') || '').trim();
+    if (
+      EMOJI_ALT_RE.test(alt) || img.classList.contains('bym-emoji-img') ||
+      img.classList.contains('emoji')
+    ) {
+      return false;
+    }
+    // 线上偶尔有没写 alt 的小表情，按原始尺寸兜底
+    if (img.naturalWidth && img.naturalHeight && img.naturalWidth <= 32 && img.naturalHeight <= 32) {
+      return false;
+    }
+    const src = img.getAttribute('src') || '';
+    return !!src && !/^data:/i.test(src);
+  }
+
+  // 图片外面有时包着指向原图 / 大图的链接，优先用链接目标
+  function lightboxSrc(img) {
+    const anchor = img.closest('a[href]');
+    const href = anchor && anchor.getAttribute('href');
+    if (
+      href &&
+      !/^javascript:/i.test(href) &&
+      /\.(?:jpe?g|png|gif|webp|bmp|avif|svg)(?:[?#].*)?$/i.test(href)
+    ) {
+      try {
+        return new URL(href, location.href).href;
+      } catch (e) {
+        /* 继续用图片自身的地址 */
+      }
+    }
+    return img.currentSrc || img.src;
+  }
+
+  function lightboxCaptionText(img) {
+    const alt = (img.getAttribute('alt') || '').trim();
+    if (alt && !/^(?:image|图片|img)\b/i.test(alt)) return alt;
+    const anchor = img.closest('a[href]');
+    return (img.getAttribute('title') || (anchor && anchor.getAttribute('title')) || '').trim();
+  }
+
+  function isLightboxOpen() {
+    return !!lightboxEl && lightboxEl.isConnected && !lightboxClosing &&
+      lightboxEl.classList.contains('bym-lightbox-open');
+  }
+
+  function clampLightboxPan() {
+    if (!lightboxImg || lightboxZoom <= 1) {
+      lightboxPanX = 0;
+      lightboxPanY = 0;
+      return;
+    }
+    const maxX = (lightboxZoom - 1) * lightboxImg.clientWidth;
+    const maxY = (lightboxZoom - 1) * lightboxImg.clientHeight;
+    lightboxPanX = Math.min(0, Math.max(-maxX, lightboxPanX));
+    lightboxPanY = Math.min(0, Math.max(-maxY, lightboxPanY));
+  }
+
+  function applyLightboxZoom() {
+    if (!lightboxImg) return;
+    if (lightboxZoom <= 1) {
+      lightboxImg.style.transform = '';
+      lightboxImg.style.transformOrigin = '';
+      return;
+    }
+    // 以图片左上角为原点，点击处保持不动：
+    // translate(px * (1 - scale)) 与 scale 组合后，点击点仍在原坐标
+    lightboxImg.style.transformOrigin = '0 0';
+    lightboxImg.style.transform = 'translate(' + lightboxPanX.toFixed(1) + 'px,' +
+      lightboxPanY.toFixed(1) + 'px) scale(' + lightboxZoom + ')';
+  }
+
+  function resetLightboxZoom() {
+    lightboxZoom = 1;
+    lightboxPanX = 0;
+    lightboxPanY = 0;
+    lightboxDrag = null;
+    if (lightboxEl) lightboxEl.classList.remove('bym-lb-zoomed');
+    if (!lightboxImg) return;
+    lightboxImg.classList.remove('bym-lb-dragging');
+    lightboxImg.style.transform = '';
+    lightboxImg.style.removeProperty('transform-origin');
+  }
+
+  function toggleLightboxZoom(clientX, clientY) {
+    if (!isLightboxOpen() || !lightboxImg) return;
+    // 首张图还在做缩略图放大动画时先不接管，避免两套 transform 打架
+    if (lightboxImg.classList.contains('bym-lb-loading')) return;
+    if (lightboxZoom > 1) {
+      lightboxZoom = 1;
+      lightboxPanX = 0;
+      lightboxPanY = 0;
+      lightboxEl.classList.remove('bym-lb-zoomed');
+      applyLightboxZoom();
+      return;
+    }
+    const rect = lightboxImg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const px = Math.min(Math.max(clientX - rect.left, 0), rect.width);
+    const py = Math.min(Math.max(clientY - rect.top, 0), rect.height);
+    lightboxZoom = LIGHTBOX_ZOOM;
+    lightboxPanX = px * (1 - lightboxZoom);
+    lightboxPanY = py * (1 - lightboxZoom);
+    clampLightboxPan();
+    lightboxEl.classList.add('bym-lb-zoomed');
+    applyLightboxZoom();
+  }
+
+  function onLightboxPointerDown(event) {
+    if (!isLightboxOpen() || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    lightboxDrag = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      panX: lightboxPanX,
+      panY: lightboxPanY,
+      moved: false,
+      zoomed: lightboxZoom > 1,
+    };
+    if (lightboxDrag.zoomed) {
+      lightboxImg.classList.add('bym-lb-dragging');
+      try {
+        lightboxImg.setPointerCapture(event.pointerId);
+      } catch (e) {
+        /* 旧浏览器忽略 */
+      }
+    }
+  }
+
+  function onLightboxPointerMove(event) {
+    const drag = lightboxDrag;
+    if (!drag || drag.id !== event.pointerId) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+    if (!drag.zoomed || !drag.moved) return;
+    lightboxPanX = drag.panX + dx;
+    lightboxPanY = drag.panY + dy;
+    clampLightboxPan();
+    applyLightboxZoom();
+  }
+
+  function endLightboxPointer(event, allowToggle) {
+    const drag = lightboxDrag;
+    if (!drag || drag.id !== event.pointerId) return;
+    lightboxDrag = null;
+    if (lightboxImg) {
+      lightboxImg.classList.remove('bym-lb-dragging');
+      try {
+        lightboxImg.releasePointerCapture(event.pointerId);
+      } catch (e) {
+        /* 旧浏览器忽略 */
+      }
+    }
+    if (allowToggle && !drag.moved) toggleLightboxZoom(event.clientX, event.clientY);
+  }
+
+  function onLightboxPointerUp(event) {
+    endLightboxPointer(event, true);
+  }
+
+  function onLightboxPointerCancel(event) {
+    endLightboxPointer(event, false);
+  }
+
+  function makeLightboxButton(className, label, pathData) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bym-lb-btn ' + className;
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + pathData + '"></path></svg>';
+    return btn;
+  }
+
+  function ensureLightbox() {
+    // 站点重建 body 子节点后把灯箱挂回去
+    if (lightboxEl) {
+      if (!lightboxEl.isConnected && document.body) document.body.appendChild(lightboxEl);
+      return;
+    }
+    lightboxEl = document.createElement('div');
+    lightboxEl.id = 'bym-lightbox';
+    lightboxEl.setAttribute('role', 'dialog');
+    lightboxEl.setAttribute('aria-modal', 'true');
+    lightboxEl.setAttribute('aria-label', '图片预览');
+    lightboxEl.setAttribute('aria-hidden', 'true');
+
+    const stage = document.createElement('div');
+    stage.className = 'bym-lb-stage';
+    lightboxImg = document.createElement('img');
+    lightboxImg.alt = '';
+    lightboxImg.addEventListener('pointerdown', onLightboxPointerDown);
+    lightboxImg.addEventListener('pointermove', onLightboxPointerMove);
+    lightboxImg.addEventListener('pointerup', onLightboxPointerUp);
+    lightboxImg.addEventListener('pointercancel', onLightboxPointerCancel);
+    stage.appendChild(lightboxImg);
+
+    lightboxCount = document.createElement('div');
+    lightboxCount.className = 'bym-lb-count';
+    lightboxClose = makeLightboxButton('bym-lb-close', '关闭', 'M6 6l12 12M18 6L6 18');
+    const top = document.createElement('div');
+    top.className = 'bym-lb-top';
+    top.append(lightboxCount, lightboxClose);
+
+    lightboxPrev = makeLightboxButton('bym-lb-prev', '上一张', 'M15 5l-7 7 7 7');
+    lightboxNext = makeLightboxButton('bym-lb-next', '下一张', 'M9 5l7 7-7 7');
+    lightboxCaption = document.createElement('div');
+    lightboxCaption.className = 'bym-lb-caption';
+    lightboxCaption.hidden = true;
+
+    lightboxPrev.addEventListener('click', (event) => {
+      event.stopPropagation();
+      stepLightbox(-1);
+    });
+    lightboxNext.addEventListener('click', (event) => {
+      event.stopPropagation();
+      stepLightbox(1);
+    });
+    lightboxClose.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeLightbox();
+    });
+    lightboxEl.addEventListener('click', (event) => {
+      if (event.target === lightboxEl || event.target === stage) closeLightbox();
+    });
+
+    // 手机左右滑翻页，下滑关闭
+    let touchX = 0;
+    let touchY = 0;
+    lightboxEl.addEventListener('touchstart', (event) => {
+      if (event.touches.length === 1) {
+        touchX = event.touches[0].clientX;
+        touchY = event.touches[0].clientY;
+      }
+    }, { passive: true });
+    lightboxEl.addEventListener('touchend', (event) => {
+      // 放大状态下，滑动用于拖动查看，不再翻页 / 关闭
+      if (lightboxZoom > 1) return;
+      const touch = event.changedTouches && event.changedTouches[0];
+      if (!touch) return;
+      const dx = touch.clientX - touchX;
+      const dy = touch.clientY - touchY;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+        stepLightbox(dx < 0 ? 1 : -1);
+      } else if (dy > 80 && Math.abs(dy) > Math.abs(dx)) {
+        closeLightbox();
+      }
+    }, { passive: true });
+
+    // 滚轮翻页：向下滚看下一张，向上滚看上一张。
+    // 触控板惯性会连续触发 wheel，这里用最近一次事件的时间做节流：
+    // 一次连续滚动只翻一张，停下来后再滚才会继续翻。
+    let wheelAt = 0;
+    lightboxEl.addEventListener('wheel', (event) => {
+      if (!isLightboxOpen() || event.ctrlKey) return;
+      event.preventDefault();
+      // 放大状态下滚轮让位给拖动查看
+      if (lightboxZoom > 1) return;
+      const now = Date.now();
+      if (now - wheelAt < 150) {
+        wheelAt = now;
+        return;
+      }
+      wheelAt = now;
+      const delta = event.deltaY || event.deltaX;
+      if (!delta) return;
+      stepLightbox(delta > 0 ? 1 : -1);
+    }, { passive: false });
+
+    lightboxEl.append(stage, top, lightboxPrev, lightboxNext, lightboxCaption);
+    document.body.appendChild(lightboxEl);
+  }
+
+  function onceImageReady(callback) {
+    const done = () => {
+      lightboxImg.removeEventListener('load', done);
+      lightboxImg.removeEventListener('error', done);
+      requestAnimationFrame(() => requestAnimationFrame(callback));
+    };
+    if (lightboxImg.complete && lightboxImg.naturalWidth) {
+      requestAnimationFrame(() => requestAnimationFrame(callback));
+      return;
+    }
+    lightboxImg.addEventListener('load', done);
+    lightboxImg.addEventListener('error', done);
+  }
+
+  function preloadLightboxNeighbors() {
+    if (lightboxItems.length < 2) return;
+    [-1, 1].forEach((step) => {
+      const index = (lightboxIndex + step + lightboxItems.length) % lightboxItems.length;
+      const preload = new Image();
+      preload.src = lightboxSrc(lightboxItems[index]);
+    });
+  }
+
+  function renderLightbox(direction) {
+    const item = lightboxItems[lightboxIndex];
+    if (!item) return;
+    resetLightboxZoom();
+    const caption = lightboxCaptionText(item);
+    lightboxCaption.textContent = caption;
+    lightboxCaption.hidden = !caption;
+    if (lightboxItems.length > 1) {
+      lightboxCount.textContent = lightboxIndex + 1 + ' / ' + lightboxItems.length;
+    }
+    if (direction) {
+      lightboxImg.style.transition = 'none';
+      lightboxImg.style.opacity = '0';
+      lightboxImg.style.transform = 'translateX(' + (direction > 0 ? 24 : -24) + 'px)';
+    }
+    lightboxImg.src = lightboxSrc(item);
+    lightboxImg.alt = item.getAttribute('alt') || '';
+    if (direction) {
+      onceImageReady(() => {
+        if (!isLightboxOpen()) return;
+        void lightboxImg.offsetWidth;
+        lightboxImg.style.transition = '';
+        lightboxImg.style.opacity = '';
+        lightboxImg.style.transform = '';
+      });
+    }
+  }
+
+  function zoomLightboxFrom(rect) {
+    const target = lightboxImg.getBoundingClientRect();
+    if (!rect.width || !target.width || !target.height) {
+      lightboxImg.classList.add('bym-lb-pop');
+      void lightboxImg.offsetWidth;
+      requestAnimationFrame(() => lightboxImg.classList.remove('bym-lb-pop'));
+      return;
+    }
+    const dx = (rect.left + rect.width / 2) - (target.left + target.width / 2);
+    const dy = (rect.top + rect.height / 2) - (target.top + target.height / 2);
+    const sx = rect.width / target.width;
+    const sy = rect.height / target.height;
+    lightboxImg.style.setProperty('--bym-lb-dx', dx.toFixed(1) + 'px');
+    lightboxImg.style.setProperty('--bym-lb-dy', dy.toFixed(1) + 'px');
+    lightboxImg.style.setProperty('--bym-lb-sx', sx.toFixed(4));
+    lightboxImg.style.setProperty('--bym-lb-sy', sy.toFixed(4));
+    lightboxImg.classList.add('bym-lb-from-thumb');
+    void lightboxImg.offsetWidth;
+    requestAnimationFrame(() => {
+      lightboxImg.classList.remove('bym-lb-from-thumb');
+    });
+  }
+
+  function openLightbox(img) {
+    if (lightboxClosing) return;
+    const group = imageGroup(img);
+    if (!group) return;
+    const items = Array.from(group.querySelectorAll('img')).filter(
+      (el) => lightboxEligible(el) && imageGroup(el) === group
+    );
+    if (!items.length) return;
+
+    const thumbRect = img.getBoundingClientRect();
+    ensureLightbox();
+    lightboxItems = items;
+    lightboxIndex = Math.max(0, items.indexOf(img));
+    lightboxReturn = img;
+    lightboxEl.classList.toggle('bym-lb-single', items.length <= 1);
+    lightboxImg.classList.remove('bym-lb-from-thumb', 'bym-lb-to-thumb', 'bym-lb-pop');
+    lightboxImg.classList.add('bym-lb-loading');
+    lightboxImg.style.removeProperty('--bym-lb-dx');
+    lightboxImg.style.removeProperty('--bym-lb-dy');
+    lightboxImg.style.removeProperty('--bym-lb-sx');
+    lightboxImg.style.removeProperty('--bym-lb-sy');
+    lightboxImg.style.transition = '';
+    lightboxImg.style.opacity = '';
+    lightboxImg.style.transform = '';
+    renderLightbox();
+    document.documentElement.classList.add('bym-lightbox-lock');
+    lightboxEl.setAttribute('aria-hidden', 'false');
+    lightboxEl.classList.add('bym-lightbox-open');
+    try {
+      lightboxClose.focus({ preventScroll: true });
+    } catch (e) {
+      /* 旧浏览器忽略 */
+    }
+    onceImageReady(() => {
+      if (!isLightboxOpen()) return;
+      lightboxImg.classList.remove('bym-lb-loading');
+      zoomLightboxFrom(thumbRect);
+      preloadLightboxNeighbors();
+    });
+  }
+
+  function stepLightbox(step) {
+    if (!isLightboxOpen() || lightboxItems.length < 2) return;
+    const direction = step > 0 ? 1 : -1;
+    lightboxIndex = (lightboxIndex + step + lightboxItems.length) % lightboxItems.length;
+    renderLightbox(direction);
+    preloadLightboxNeighbors();
+  }
+
+  function closeLightbox() {
+    if (!lightboxEl || lightboxClosing) return;
+    if (!lightboxEl.classList.contains('bym-lightbox-open')) {
+      document.documentElement.classList.remove('bym-lightbox-lock');
+      return;
+    }
+    lightboxClosing = true;
+    // 先瞬时回到未放大状态，否则反向缩放会以放大后的尺寸计算
+    lightboxImg.style.transition = 'none';
+    resetLightboxZoom();
+    void lightboxImg.offsetWidth;
+    lightboxImg.style.transition = '';
+    const back = lightboxReturn;
+    if (back && back.isConnected) {
+      const thumb = back.getBoundingClientRect();
+      const current = lightboxImg.getBoundingClientRect();
+      if (thumb.width && current.width && current.height) {
+        const dx = (thumb.left + thumb.width / 2) - (current.left + current.width / 2);
+        const dy = (thumb.top + thumb.height / 2) - (current.top + current.height / 2);
+        lightboxImg.style.setProperty('--bym-lb-dx', dx.toFixed(1) + 'px');
+        lightboxImg.style.setProperty('--bym-lb-dy', dy.toFixed(1) + 'px');
+        lightboxImg.style.setProperty('--bym-lb-sx', (thumb.width / current.width).toFixed(4));
+        lightboxImg.style.setProperty('--bym-lb-sy', (thumb.height / current.height).toFixed(4));
+        lightboxImg.classList.add('bym-lb-to-thumb');
+      }
+    }
+    lightboxEl.classList.add('bym-lb-leaving');
+    setTimeout(() => {
+      lightboxEl.classList.remove('bym-lightbox-open', 'bym-lb-leaving');
+      lightboxEl.setAttribute('aria-hidden', 'true');
+      lightboxImg.classList.remove('bym-lb-to-thumb', 'bym-lb-from-thumb', 'bym-lb-loading', 'bym-lb-pop');
+      ['--bym-lb-dx', '--bym-lb-dy', '--bym-lb-sx', '--bym-lb-sy'].forEach((name) => {
+        lightboxImg.style.removeProperty(name);
+      });
+      lightboxImg.style.transition = '';
+      lightboxImg.style.opacity = '';
+      lightboxImg.style.transform = '';
+      lightboxImg.removeAttribute('src');
+      lightboxItems = [];
+      lightboxIndex = 0;
+      lightboxClosing = false;
+      document.documentElement.classList.remove('bym-lightbox-lock');
+      if (back && back.isConnected) {
+        try {
+          back.focus({ preventScroll: true });
+        } catch (e) {
+          /* 图片不可聚焦时忽略 */
+        }
+      }
+      lightboxReturn = null;
+    }, 260);
+  }
+
+  function onArticleImageClick(event) {
+    if (!state.enabled || !isModern()) return;
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const img = event.target;
+    if (!img || img.tagName !== 'IMG' || !lightboxEligible(img)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openLightbox(img);
+  }
+
   /* ------------------------------------------------------------------ *
    * 6. 启动、路由与 DOM 监听
    * ------------------------------------------------------------------ */
@@ -4053,6 +5495,7 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
     installCollectToggle();
     mountDock();
     mountFloatbar();
+    mountFloorTopButton();
     // 首次装饰同步完成，避免页面先按站点原布局画一遍、
     // 下一帧再跳到简约版。
     decorateFloors();
@@ -4082,6 +5525,7 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
       installCollectToggle();
       mountDock();
       mountFloatbar();
+      mountFloorTopButton();
       scheduleDecorate();
       scheduleDialogDecorate();
     });
@@ -4092,6 +5536,7 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
       installCollectToggle();
       mountDock();
       mountFloatbar();
+      mountFloorTopButton();
       scheduleDecorate();
       scheduleDialogDecorate();
     }, 300);
@@ -4105,14 +5550,28 @@ html.bym-dark body.bym-on .ui-dialog .u-search { color: #7d8a9c !important; }
     installDialogOutsideClose();
     installCollectToggle();
     scheduleDialogDecorate();
+    scheduleFloorTopUpdate();
   });
 
   window.addEventListener('keydown', onKeydown, true);
   window.addEventListener('scroll', updateFloatbarVisibility, { passive: true });
   window.addEventListener('scroll', updateBottomBarFlow, { passive: true });
+  window.addEventListener('scroll', scheduleFloorTopUpdate, { passive: true });
   window.addEventListener('resize', resizeComposer);
   window.addEventListener('resize', updateBottomBarFlow);
+  window.addEventListener('resize', scheduleFloorTopUpdate);
   window.addEventListener('resize', scheduleDialogDecorate);
+  // 捕获阶段接管图片点击：阻止站点 / 外层链接新开标签页
+  document.addEventListener('click', onArticleImageClick, true);
+  document.addEventListener('click', onDocumentClickOutsideEmoji, true);
+  document.addEventListener('click', onEmbedClick, false);
+
+  // 缩放或调整窗口跨过 900px 时，重新决定发信 / 加好友的落点
+  if (narrowActionsQuery) {
+    const onActionsWidth = () => scheduleDecorate();
+    if (narrowActionsQuery.addEventListener) narrowActionsQuery.addEventListener('change', onActionsWidth);
+    else if (narrowActionsQuery.addListener) narrowActionsQuery.addListener(onActionsWidth);
+  }
 
   // 系统主题变化时，仅在「跟随系统」模式下重新应用
   if (darkQuery) {
